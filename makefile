@@ -1,128 +1,97 @@
-# Compilateur et options
+# ============================================================
+# Makefile Fedora Linux - Mario C++ / SDL2
+# Text mode + Graphic mode + SDL2_image + SDL2_ttf
+# ============================================================
 
-CC = g++
-DOXY = doxygen
-CFLAGS = -std=c++11 -Wall -Wextra -Wconversion -pedantic -ggdb -finput-charset=UTF-8
+CXX      := g++
+DOXY     := doxygen
 
-# Répertoires
+SRC_DIR  := src
+CORE_DIR := $(SRC_DIR)/core
+TEXT_DIR := $(SRC_DIR)/text
+GFX_DIR  := $(SRC_DIR)/graphic
 
-SRC_DIR = src
-CORE_DIR = $(SRC_DIR)/core
-TEXT_DIR = $(SRC_DIR)/text
-OBJ_DIR = obj
-BIN_DIR = bin
-DOC_DIR = doc
+OBJ_DIR  := obj
+BIN_DIR  := bin
+DOC_DIR  := doc
 
-# Cible principale
+CXXFLAGS := -std=c++11 -Wall -Wextra -Wconversion -pedantic -ggdb
+CPPFLAGS := -I$(CORE_DIR) -I$(TEXT_DIR) -I$(GFX_DIR)
 
-all: $(BIN_DIR)/JeuTexte
+SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_image SDL2_ttf)
+SDL_LIBS   := -lSDL2_ttf -lSDL2_image -lSDL2
 
-# Exécutable du mode texte
+CORE_SRC := $(wildcard $(CORE_DIR)/*.cpp)
+TEXT_SRC := $(TEXT_DIR)/JeuTexte.cpp $(TEXT_DIR)/ModeTexte.cpp
+GFX_SRC  := $(GFX_DIR)/GraphicGame.cpp \
+            $(GFX_DIR)/GameGraphicMode.cpp \
+            $(GFX_DIR)/SDLContext.cpp \
+            $(GFX_DIR)/TextureManager.cpp
 
-$(BIN_DIR)/JeuTexte: \
-	$(OBJ_DIR)/JeuTexte.o \
-	$(OBJ_DIR)/ModeTexte.o \
-	$(OBJ_DIR)/Jeu.o \
-	$(OBJ_DIR)/Joueur.o \
-	$(OBJ_DIR)/Niveau.o \
-	$(OBJ_DIR)/Vec2.o \
-	$(OBJ_DIR)/Entity.o \
-	$(OBJ_DIR)/Ennemi.o \
-	$(OBJ_DIR)/Item.o \
-	$(OBJ_DIR)/Feu.o \
-	$(OBJ_DIR)/PlateformeMobile.o \
-	$(OBJ_DIR)/Tuile.o \
-	$(OBJ_DIR)/EntreeJoueur.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $^ -o $@
+CORE_OBJ := $(patsubst $(CORE_DIR)/%.cpp,$(OBJ_DIR)/core/%.o,$(CORE_SRC))
+TEXT_OBJ := $(patsubst $(TEXT_DIR)/%.cpp,$(OBJ_DIR)/text/%.o,$(TEXT_SRC))
+GFX_OBJ  := $(patsubst $(GFX_DIR)/%.cpp,$(OBJ_DIR)/graphic/%.o,$(GFX_SRC))
 
-# Fichiers texte
+TEXT_EXE := $(BIN_DIR)/JeuTexte
+GFX_EXE  := $(BIN_DIR)/JeuGraphique
 
-$(OBJ_DIR)/JeuTexte.o: $(TEXT_DIR)/JeuTexte.cpp | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+.PHONY: all text graphic run run-text run-graphic clean veryclean docu help
 
-$(OBJ_DIR)/ModeTexte.o: $(TEXT_DIR)/ModeTexte.cpp $(TEXT_DIR)/ModeTexte.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+all: text graphic
 
-# Fichiers core
+text: $(TEXT_EXE)
 
-$(OBJ_DIR)/Jeu.o: $(CORE_DIR)/Jeu.cpp $(CORE_DIR)/Jeu.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+graphic: $(GFX_EXE)
 
-$(OBJ_DIR)/Joueur.o: $(CORE_DIR)/Joueur.cpp $(CORE_DIR)/Joueur.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(TEXT_EXE): $(CORE_OBJ) $(TEXT_OBJ) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $^ -o $@
 
-$(OBJ_DIR)/Niveau.o: $(CORE_DIR)/Niveau.cpp $(CORE_DIR)/Niveau.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(GFX_EXE): $(CORE_OBJ) $(GFX_OBJ) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(SDL_LIBS)
 
-$(OBJ_DIR)/Vec2.o: $(CORE_DIR)/Vec2.cpp $(CORE_DIR)/Vec2.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(OBJ_DIR)/core/%.o: $(CORE_DIR)/%.cpp | $(OBJ_DIR)/core
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/Entity.o: $(CORE_DIR)/Entity.cpp $(CORE_DIR)/Entity.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(OBJ_DIR)/text/%.o: $(TEXT_DIR)/%.cpp | $(OBJ_DIR)/text
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/Ennemi.o: $(CORE_DIR)/Ennemi.cpp $(CORE_DIR)/Ennemi.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/Item.o: $(CORE_DIR)/Item.cpp $(CORE_DIR)/Item.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/Feu.o: $(CORE_DIR)/Feu.cpp $(CORE_DIR)/Feu.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/PlateformeMobile.o: $(CORE_DIR)/PlateformeMobile.cpp $(CORE_DIR)/PlateformeMobile.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/Tuile.o: $(CORE_DIR)/Tuile.cpp $(CORE_DIR)/Tuile.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/EntreeJoueur.o: $(CORE_DIR)/EntreeJoueur.cpp $(CORE_DIR)/EntreeJoueur.h | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Création des dossiers
-
-$(OBJ_DIR):
-	mkdir -p $@
+$(OBJ_DIR)/graphic/%.o: $(GFX_DIR)/%.cpp | $(OBJ_DIR)/graphic
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -c $< -o $@
 
 $(BIN_DIR):
-	mkdir -p $@
+	mkdir -p $(BIN_DIR)
 
-# Lancer le mode texte
+$(OBJ_DIR)/core:
+	mkdir -p $(OBJ_DIR)/core
 
-run: $(BIN_DIR)/JeuTexte
-	./$(BIN_DIR)/JeuTexte
+$(OBJ_DIR)/text:
+	mkdir -p $(OBJ_DIR)/text
 
-# Lancer le mode graphique
+$(OBJ_DIR)/graphic:
+	mkdir -p $(OBJ_DIR)/graphic
 
-GRAPHIC_DIR = $(SRC_DIR)/graphic
+run: run-text
 
-graphic: $(BIN_DIR)/JeuGraphique
+run-text: $(TEXT_EXE)
+	./$(TEXT_EXE)
 
-$(BIN_DIR)/JeuGraphique: \
-	$(GRAPHIC_DIR)/GraphicGame.cpp \
-	$(GRAPHIC_DIR)/GameGraphicMode.cpp \
-	$(GRAPHIC_DIR)/SDLContext.cpp \
-	$(GRAPHIC_DIR)/TextureManager.cpp \
-	$(CORE_DIR)/Jeu.cpp \
-	$(CORE_DIR)/Joueur.cpp \
-	$(CORE_DIR)/Niveau.cpp \
-	$(CORE_DIR)/Vec2.cpp \
-	$(CORE_DIR)/Entity.cpp \
-	$(CORE_DIR)/Ennemi.cpp \
-	$(CORE_DIR)/Item.cpp \
-	$(CORE_DIR)/Feu.cpp \
-	$(CORE_DIR)/PlateformeMobile.cpp \
-	$(CORE_DIR)/Tuile.cpp \
-	$(CORE_DIR)/EntreeJoueur.cpp | $(BIN_DIR)
-	$(CC) $(CFLAGS) -Iextern/include $^ -Lextern/lib -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -o $@s
-
-# Documentation
+run-graphic: $(GFX_EXE)
+	./$(GFX_EXE)
 
 docu:
 	$(DOXY) $(DOC_DIR)/Doxyfile
 
-# Nettoyage
-
 clean:
-	rm -f $(OBJ_DIR)/*.o
-	rm -f $(BIN_DIR)/*
+	rm -rf $(OBJ_DIR)
+	rm -f $(TEXT_EXE) $(GFX_EXE)
+
+veryclean: clean
 	rm -rf $(DOC_DIR)/html
+
+help:
+	@echo "make              -> compile text + graphic"
+	@echo "make text         -> compile only text mode"
+	@echo "make graphic      -> compile only graphic mode"
+	@echo "make run-text     -> compile and run text mode"
+	@echo "make run-graphic  -> compile and run graphic mode"
+	@echo "make clean        -> remove compiled files"

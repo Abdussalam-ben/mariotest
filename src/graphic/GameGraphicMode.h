@@ -1,8 +1,11 @@
 #ifndef GAMEGRAPHICMODE_H
 #define GAMEGRAPHICMODE_H
 
-#include "SDL.h"
-#include "SDL_image.h"
+#include <string>
+
+#include <SDL.h>
+#include <SDL_image.h>
+#include <SDL_ttf.h>
 
 #include "SDLContext.h"
 #include "TextureManager.h"
@@ -16,27 +19,50 @@
 #include "../core/EntreeJoueur.h"
 #include "../core/PlateformeMobile.h"
 #include "../core/Tuile.h"
+#include "../core/Constantes.h"
 
 /**
  * @brief Gère l'affichage graphique du jeu.
  */
-class GameGraphicMode {
+class GameGraphicMode
+{
 private:
     SDLContext* contexte;
     TextureManager* textures;
     Jeu* jeu;
     Niveau* niveau;
     Joueur* joueur;
+
     bool actif;
     unsigned int frame;
+
+    float cameraX;
+    float cameraY;
+
+    TTF_Font* police;
+    unsigned int scoreMax;
 
 public:
     GameGraphicMode(SDLContext& c, TextureManager& t);
 
     void setJeu(Jeu& j, Niveau& n, Joueur& p);
+
     EntreeJoueur lireEntree() const;
 
+    void majCamera();
+
+    void initialiserPolice();
+    void fermerPolice();
+
     void afficherSprite(const char* nom, int x, int y, int l, int h, bool flip = false);
+    void afficherTexte(const std::string& texte, int x, int y);
+    void afficherHUD();
+
+    std::string nomJoueur() const;
+    std::string nomNiveau() const;
+    std::string etatJoueur() const;
+    unsigned int calculerScoreMax() const;
+
     const char* spriteJoueur() const;
 
     void afficherCarte();

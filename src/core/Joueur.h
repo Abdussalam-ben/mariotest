@@ -7,54 +7,56 @@
 /**
  * @brief Represente la taille ou le pouvoir du joueur.
  */
-enum class TypeJoueur {
-    petit,  ///< Joueur normal.
-    grand,  ///< Joueur agrandi.
-    etoile, ///< Joueur invincible.
-    feu     ///< Joueur avec pouvoir de feu.
+enum class TypeJoueur
+{
+    petit,
+    grand,
+    etoile,
+    feu
 };
 
 /**
  * @brief Represente le personnage choisi.
  */
-enum class Personnage {
-    mario, ///< Skin Mario.
-    luigi  ///< Skin Luigi.
+enum class Personnage
+{
+    mario,
+    luigi
 };
 
 /**
  * @brief Représente l'état de vie du joueur.
  */
-enum class EtatJoueur {
-    EnVie, ///< Joueur vivant.
-    Mort   ///< Joueur mort.
+enum class EtatJoueur
+{
+    EnVie,
+    Mort
 };
 
 /**
  * @brief Représente l'état visuel du mouvement du joueur.
  */
-enum class EtatMouvJoueur {
-    rien,  ///< Pas d'animation.
-    etat1, ///< Premier état.
-    etat2, ///< Deuxième état.
-    etat3  ///< Troisième état.
+enum class EtatMouvJoueur
+{
+    rien,
+    etat1,
+    etat2,
+    etat3
 };
 
 /**
  * @brief Représente le joueur.
  */
-class Joueur : public Entity {
+class Joueur : public Entity
+{
 private:
-    TypeJoueur type; ///< Type actuel du joueur.
-    EtatJoueur etat; ///< État de vie.
-    EtatMouvJoueur mouv; ///< État de mouvement.
-    unsigned int vies; ///< Nombre de vies restantes.
-    Personnage perso; ///< Personnage choisi.
+    TypeJoueur type;
+    EtatJoueur etat;
+    EtatMouvJoueur mouv;
+    unsigned int vies;
+    Personnage perso;
 
 public:
-    /**
-     * @brief Empêche la création d'un joueur sans position.
-     */
     Joueur() = delete;
 
     /**
@@ -63,9 +65,6 @@ public:
      */
     Joueur(const Vec2& p);
 
-    /**
-     * @brief Destructeur par défaut.
-     */
     ~Joueur() = default;
 
     /**
@@ -73,34 +72,26 @@ public:
      */
     void MajMouv();
 
-    /**
-     * @brief Retourne le type du joueur.
-     * @return Type du joueur.
-     */
     TypeJoueur getType() const;
-
-    /**
-     * @brief Retourne l'état du joueur.
-     * @return État du joueur.
-     */
     EtatJoueur getEtat() const;
-
-    /**
-     * @brief Retourne l'état de mouvement.
-     * @return État de mouvement.
-     */
     EtatMouvJoueur getMouv() const;
-
-    /**
-     * @brief Retourne le nombre de vies.
-     * @return Nombre de vies.
-     */
     unsigned int getVies() const;
 
+    /**
+     * @brief Retourne le personnage choisi.
+     * @return Mario ou Luigi.
+     */
+    Personnage getPersonnage() const;
 
     /**
-    * @brief Retire une vie au joueur.
-    */
+     * @brief Change le personnage affiché.
+     * @param p Nouveau personnage.
+     */
+    void setPersonnage(Personnage p);
+
+    /**
+     * @brief Retire une vie au joueur.
+     */
     void perdreVie();
 
     /**
@@ -109,9 +100,6 @@ public:
      */
     bool estMort() const;
 
-    /**
-     * @brief Lance les tests de régression de Joueur.
-     */
     static void testRegression();
 };
 
