@@ -176,7 +176,7 @@ void GameGraphicMode::afficherTexte(const string& texte, int x, int y)
 string GameGraphicMode::nomJoueur() const
 {
     if (joueur == nullptr)
-        return "Player";
+        return "Joueur";
 
     if (joueur->getPersonnage() == Personnage::luigi)
         return "Luigi";
@@ -203,21 +203,27 @@ string GameGraphicMode::nomNiveau() const
 string GameGraphicMode::etatJoueur() const
 {
     if (joueur == nullptr)
-        return "inconnu";
+        return "Inconnu";
+
+    string etat;
 
     if (joueur->getType() == TypeJoueur::petit)
-        return "Petit";
+        etat = "Petit";
+    else if (joueur->getType() == TypeJoueur::grand)
+        etat = "Grand";
+    else if (joueur->getType() == TypeJoueur::feu)
+        etat = "Feu";
+    else
+        etat = "Inconnu";
 
-    if (joueur->getType() == TypeJoueur::grand)
-        return "Grand";
+    if (joueur->estInvincible())
+    {
+        etat += " + Etoile ";
+        etat += to_string(static_cast<int>(joueur->getTempsEtoile()));
+        etat += "s";
+    }
 
-    if (joueur->getType() == TypeJoueur::feu)
-        return "Feu";
-
-    if (joueur->getType() == TypeJoueur::etoile)
-        return "Etoile";
-
-    return "inconnu";
+    return etat;
 }
 
 unsigned int GameGraphicMode::calculerScoreMax() const
@@ -227,8 +233,18 @@ unsigned int GameGraphicMode::calculerScoreMax() const
 
     unsigned int max = 0;
 
-    max += static_cast<unsigned int>(niveau->getItemsInit().size()) * 10;
-    max += static_cast<unsigned int>(niveau->getEnnemisInit().size()) * 100;
+    const vector<Item>& items = niveau->getItemsInit();
+    const vector<Ennemi>& ennemis = niveau->getEnnemisInit();
+
+    for (unsigned int i = 0; i < items.size(); i++)
+    {
+        if (items[i].getType() == TypeItem::piece)
+            max += 10;
+        else
+            max += 50;
+    }
+
+    max += static_cast<unsigned int>(ennemis.size()) * 100;
 
     return max;
 }
@@ -249,7 +265,7 @@ void GameGraphicMode::afficherHUD()
         "Temps: " + to_string(tempsRestant) +
         " | Etat: " + etatJoueur() +
         " | Score: " + to_string(jeu->getScore()) +
-        " / " + to_string(scoreMax);
+        "/" + to_string(scoreMax);
 
     afficherTexte(ligne1, 4, 4);
     afficherTexte(ligne2, 4, 16);
@@ -260,41 +276,144 @@ const char* GameGraphicMode::spriteJoueur() const
     if (joueur == nullptr)
         return "mario_base.png";
 
-    if (joueur->getVit().y < 0.f)
-    {
-        if (joueur->getDir() == Direction::Gauche)
-            return "mario_saut_gauche.png";
+    bool luigi = joueur->getPersonnage() == Personnage::luigi;
+    bool gauche = joueur->getDir() == Direction::Gauche;
+    bool saut = joueur->getVit().y < 0.f;
+    bool marcheDroite = joueur->getVit().x > 0.f;
+    bool marcheGauche = joueur->getVit().x < 0.f;
+    unsigned int k = (frame / 8) % 3;
 
-        return "mario_saut_droite.png";
+    if (joueur->getType() == TypeJoueur::feu)
+    {
+        if (luigi)
+        {
+            if (saut)
+                return gauche ? "luigi_feu_saut_gauche.png" : "luigi_feu_saut_droite.png";
+
+            if (marcheDroite)
+            {
+                if (k == 0) return "luigi_feu_marche_droite_1.png";
+                if (k == 1) return "luigi_feu_marche_droite_2.png";
+                return "luigi_feu_marche_droite_3.png";
+            }
+
+            if (marcheGauche)
+            {
+                if (k == 0) return "luigi_feu_marche_gauche_1.png";
+                if (k == 1) return "luigi_feu_marche_gauche_2.png";
+                return "luigi_feu_marche_gauche_3.png";
+            }
+
+            return gauche ? "luigi_feu_initial_gauche.png" : "luigi_feu_initial.png";
+        }
+
+        if (saut)
+            return gauche ? "mario_feu_saut_gauche.png" : "mario_feu_saut_droite.png";
+
+        if (marcheDroite)
+        {
+            if (k == 0) return "mario_feu_marche_droite_1.png";
+            if (k == 1) return "mario_feu_marche_droite_2.png";
+            return "mario_feu_marche_droite_3.png";
+        }
+
+        if (marcheGauche)
+        {
+            if (k == 0) return "mario_feu_marche_gauche_1.png";
+            if (k == 1) return "mario_feu_marche_gauche_2.png";
+            return "mario_feu_marche_gauche_3.png";
+        }
+
+        return gauche ? "mario_feu_initial_gauche.png" : "mario_feu_initial.png";
     }
 
-    if (joueur->getVit().x > 0.f)
+    if (joueur->getType() == TypeJoueur::grand)
     {
-        unsigned int k = (frame / 8) % 3;
+        if (luigi)
+        {
+            if (saut)
+                return gauche ? "grand_luigi_saut_gauche.png" : "grand_luigi_saut_droite.png";
 
-        if (k == 0)
-            return "mario_droite_pas1.png";
+            if (marcheDroite)
+            {
+                if (k == 0) return "grand_luigi_pas1_droite.png";
+                if (k == 1) return "grand_luigi_pas2_droite.png";
+                return "grand_luigi_pas3_droite.png";
+            }
 
-        if (k == 1)
-            return "mario_droite_pas2.png";
+            if (marcheGauche)
+            {
+                if (k == 0) return "grand_luigi_pas1_gauche.png";
+                if (k == 1) return "grand_luigi_pas2_gauche.png";
+                return "grand_luigi_pas3_gauche.png";
+            }
 
+            return gauche ? "grand_luigi_base_gauche.png" : "grand_luigi_base.png";
+        }
+
+        if (saut)
+            return gauche ? "mario_grand_saut_gauche.png" : "mario_grand_saut_droite.png";
+
+        if (marcheDroite)
+        {
+            if (k == 0) return "mario_grand_marche_droite_1.png";
+            if (k == 1) return "mario_grand_marche_droite_2.png";
+            return "mario_grand_marche_droite_3.png";
+        }
+
+        if (marcheGauche)
+        {
+            if (k == 0) return "mario_grand_marche_gauche_1.png";
+            if (k == 1) return "mario_grand_marche_gauche_2.png";
+            return "mario_grand_marche_gauche_3.png";
+        }
+
+        return gauche ? "mario_grand_marche_gauche_1.png" : "mario_grand_initial.png";
+    }
+
+    /*
+     * Petit Mario / Petit Luigi.
+     */
+    if (luigi)
+    {
+        if (saut)
+            return gauche ? "luigi_saut_gauche.png" : "luigi_saut_droite.png";
+
+        if (marcheDroite)
+        {
+            if (k == 0) return "luigi_droite_pas1.png";
+            if (k == 1) return "luigi_droite_pas2.png";
+            return "luigi_droite_pas3.png";
+        }
+
+        if (marcheGauche)
+        {
+            if (k == 0) return "luigi_droite_pas1_gauche.png";
+            if (k == 1) return "luigi_droite_pas2_gauche.png";
+            return "luigi_droite_pas3_gauche.png";
+        }
+
+        return gauche ? "luigi_base_gauche.png" : "luigi_base_droite.png";
+    }
+
+    if (saut)
+        return gauche ? "mario_saut_gauche.png" : "mario_saut_droite.png";
+
+    if (marcheDroite)
+    {
+        if (k == 0) return "mario_droite_pas1.png";
+        if (k == 1) return "mario_droite_pas2.png";
         return "mario_droite_pas3.png";
     }
 
-    if (joueur->getVit().x < 0.f)
+    if (marcheGauche)
     {
-        unsigned int k = (frame / 8) % 3;
-
-        if (k == 0)
-            return "mario_gauche_pas1.png";
-
-        if (k == 1)
-            return "mario_gauche_pas2.png";
-
+        if (k == 0) return "mario_gauche_pas1.png";
+        if (k == 1) return "mario_gauche_pas2.png";
         return "mario_gauche_pas3.png";
     }
 
-    return "mario_base.png";
+    return gauche ? "mario_base_gauche.png" : "mario_base.png";
 }
 
 void GameGraphicMode::afficherCarte()
@@ -311,7 +430,11 @@ void GameGraphicMode::afficherCarte()
             int px = static_cast<int>(x * 16);
             int py = static_cast<int>(y * 16);
 
-            if (t == TypeTuile::sol || t == TypeTuile::incassable)
+            if (t == TypeTuile::sol)
+            {
+                afficherSprite("sol.png", px, py, 16, 16);
+            }
+            else if (t == TypeTuile::incassable)
             {
                 afficherSprite("bloc_dur.png", px, py, 16, 16);
             }
@@ -340,7 +463,7 @@ void GameGraphicMode::afficherCarte()
     int fx = static_cast<int>(niveau->getFin().x);
     int fy = static_cast<int>(niveau->getFin().y);
 
-    afficherSprite("tuile_vide.png", fx, fy, 16, 16);
+    afficherSprite("drapeau_fin.png", fx, fy - 16, 16, 32);
 }
 
 void GameGraphicMode::afficherItems()
@@ -359,11 +482,26 @@ void GameGraphicMode::afficherItems()
         int y = static_cast<int>(items[i].getPos().y);
 
         if (items[i].getType() == TypeItem::piece)
-            afficherSprite("piece.png", x, y, 16, 16);
+        {
+            unsigned int k = (frame / 8) % 4;
+
+            if (k == 0) afficherSprite("coin_1.png", x, y, 16, 16);
+            else if (k == 1) afficherSprite("coin_2.png", x, y, 16, 16);
+            else if (k == 2) afficherSprite("coin_3.png", x, y, 16, 16);
+            else afficherSprite("coin_4.png", x, y, 16, 16);
+        }
         else if (items[i].getType() == TypeItem::champignon)
+        {
             afficherSprite("champignon.png", x, y, 16, 16);
+        }
         else if (items[i].getType() == TypeItem::fleur)
+        {
             afficherSprite("fleur_feu.png", x, y, 16, 16);
+        }
+        else if (items[i].getType() == TypeItem::etoile)
+        {
+            afficherSprite("etoile.png", x, y, 16, 16);
+        }
     }
 }
 
@@ -423,7 +561,12 @@ void GameGraphicMode::afficherFeux()
             int x = static_cast<int>(feux[i].getPos().x);
             int y = static_cast<int>(feux[i].getPos().y);
 
-            afficherSprite("fleur_feu.png", x, y, 12, 12);
+            unsigned int k = (frame / 5) % 4;
+
+            if (k == 0) afficherSprite("boule_feu_1.png", x, y, 8, 8);
+            else if (k == 1) afficherSprite("boule_feu_2.png", x, y, 8, 8);
+            else if (k == 2) afficherSprite("boule_feu_3.png", x, y, 8, 8);
+            else afficherSprite("boule_feu_4.png", x, y, 8, 8);
         }
     }
 }
@@ -436,7 +579,10 @@ void GameGraphicMode::afficherJoueur()
     int x = static_cast<int>(joueur->getPos().x);
     int y = static_cast<int>(joueur->getPos().y);
 
-    afficherSprite(spriteJoueur(), x, y, 16, 16);
+    int largeur = static_cast<int>(joueur->getLargeur());
+    int hauteur = static_cast<int>(joueur->getHauteur());
+
+    afficherSprite(spriteJoueur(), x, y, largeur, hauteur);
 }
 
 void GameGraphicMode::afficher()
@@ -476,10 +622,13 @@ void GameGraphicMode::boucle()
                 actif = false;
         }
 
-        if (jeu != nullptr)
+     if (jeu != nullptr)
         {
-            EntreeJoueur entree = lireEntree();
-            jeu->maj(entree, 1.f / 60.f);
+    EntreeJoueur entree = lireEntree();
+    jeu->maj(entree, 1.f / 60.f);
+
+    if (jeu->getEtat() != EtatPartie::enCours)
+        actif = false;
         }
 
         afficher();

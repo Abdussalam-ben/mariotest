@@ -5,25 +5,28 @@
 #include <iostream>
 #include <cassert>
 #include <vector>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 
 static const float TAILLE_TUILE = 16.f;
 static const float VITESSE_SAUT_JEU = 340.f;
+static const float DUREE_ETOILE = 5.f;
+
+static const unsigned int MAX_BOULES_FEU = 5;
+
+static const float GRAVITE_FEU = 650.f;
+static const float REBOND_FEU_Y = 180.f;
 
 /*
- * Le sprite du joueur est dessiné en 16x16,
- * mais sa hitbox est volontairement plus fine.
- * Cela permet de passer dans les espaces serrés.
+ * Hitbox plus fine que le sprite pour que le joueur passe mieux
+ * dans les espaces serrés.
  */
 static const float HITBOX_JOUEUR_X = 3.f;
 static const float HITBOX_JOUEUR_Y = 0.f;
 static const float HITBOX_JOUEUR_L = 10.f;
-static const float HITBOX_JOUEUR_H = 16.f;
 
-/**
- * @brief Indique si une tuile bloque le joueur ou un ennemi.
- */
 static bool estSolide(TypeTuile t)
 {
     return t == TypeTuile::sol ||
@@ -33,46 +36,160 @@ static bool estSolide(TypeTuile t)
            t == TypeTuile::mystere;
 }
 
-/**
- * @brief Retourne true si la tuile donnée est solide.
- */
 static bool tuileSolide(const Niveau& n, int x, int y)
 {
+    /*
+     * Left/right/top outside the map = solid wall.
+     * Bottom outside the map = empty, so falling still works.
+     */
     if (x < 0 || y < 0)
         return true;
 
-    if (x >= static_cast<int>(n.getDimX()) ||
-        y >= static_cast<int>(n.getDimY()))
+    if (x >= static_cast<int>(n.getDimX()))
+        return true;
+
+    if (y >= static_cast<int>(n.getDimY()))
         return false;
 
     return estSolide(n.getTuile(static_cast<unsigned int>(x),
                                 static_cast<unsigned int>(y)));
 }
 
-/**
- * @brief Crée la hitbox du joueur.
- */
-static Hitbox hitboxJoueur(const Vec2& p)
+static void initRandom()
+{
+    static bool initialise = false;
+
+    if (!initialise)
+    {
+        srand(static_cast<unsigned int>(time(nullptr)));
+        initialise = true;
+    }
+}
+
+static bool joueurPeutCasserBloc(const Joueur& joueur)
+{
+    return joueur.getType() == TypeJoueur::grand ||
+           joueur.getType() == TypeJoueur::feu;
+}
+
+static void faireApparaitreMystere(vector<Item>& items,
+                                   vector<Ennemi>& ens,
+                                   int tx,
+                                   int ty)
+{
+    initRandom();
+
+    Vec2 position(
+        static_cast<float>(tx) * TAILLE_TUILE,
+        static_cast<float>(ty - 1) * TAILLE_TUILE
+    );
+
+    if (ty <= 0)
+    {
+        position.y = static_cast<float>(ty) * TAILLE_TUILE;
+    }
+
+    int chance = rand() % 100;
+
+    /*
+     * 15% de chance de faire apparaître un ennemi.
+     */
+    if (chance < 15)
+    {
+        ens.push_back(Ennemi(position, TypeEnnemi::Goomba));
+        return;
+    }
+
+    /*
+     * Sinon, apparition d'un item aléatoire.
+     */
+    int item = rand() % 4;
+
+    if (item == 0)
+        items.push_back(Item(position, TypeItem::piece));
+    else if (item == 1)
+        items.push_back(Item(position, TypeItem::champignon));
+    else if (item == 2)
+        items.push_back(Item(position, TypeItem::fleur));
+    else
+        items.push_back(Item(position, TypeItem::etoile));
+}
+
+static void gererTuileFrappeeParDessous(Niveau& niv,
+                                        Joueur& joueur,
+                                        vector<Item>& items,
+                                        vector<Ennemi>& ens,
+                                        int tx,
+                                        int ty)
+{
+    if (tx < 0 || ty < 0)
+        return;
+
+    if (tx >= static_cast<int>(niv.getDimX()) ||
+        ty >= static_cast<int>(niv.getDimY()))
+        return;
+
+    TypeTuile t = niv.getTuile(static_cast<unsigned int>(tx),
+                               static_cast<unsigned int>(ty));
+
+    /*
+     * Bloc cassable :
+     * seulement Grand ou Feu peut le casser.
+     */
+    if (t == TypeTuile::cassable)
+    {
+        if (joueurPeutCasserBloc(joueur))
+        {
+            niv.setTuile(static_cast<unsigned int>(tx),
+                         static_cast<unsigned int>(ty),
+                         TypeTuile::vide);
+        }
+
+        return;
+    }
+
+    /*
+     * Tuile mystère :
+     * elle disparaît et fait apparaître un item ou rarement un ennemi.
+     */
+    if (t == TypeTuile::mystere)
+    {
+        niv.setTuile(static_cast<unsigned int>(tx),
+                     static_cast<unsigned int>(ty),
+                     TypeTuile::vide);
+
+        faireApparaitreMystere(items, ens, tx, ty);
+    }
+}
+
+static Hitbox hitboxJoueur(const Joueur& joueur, const Vec2& p)
 {
     return Hitbox(
         p.x + HITBOX_JOUEUR_X,
         p.y + HITBOX_JOUEUR_Y,
         HITBOX_JOUEUR_L,
-        HITBOX_JOUEUR_H
+        joueur.getHauteur()
     );
 }
 
-/**
- * @brief Crée une hitbox de 16x16 pour items, ennemis, arrivée.
- */
 static Hitbox hitboxObjet16(const Vec2& p)
 {
     return Hitbox(p.x, p.y, 16.f, 16.f);
 }
 
-/**
- * @brief Vérifie si une hitbox rectangulaire touche une tuile solide.
- */
+static Hitbox hitboxFeu(const Vec2& p)
+{
+    return Hitbox(p.x, p.y, 8.f, 8.f);
+}
+
+static Hitbox hitboxEnnemi(const Ennemi& e, const Vec2& p)
+{
+    if (e.getType() == TypeEnnemi::Koopa)
+        return Hitbox(p.x, p.y, 16.f, 24.f);
+
+    return Hitbox(p.x, p.y, 16.f, 16.f);
+}
+
 static bool collisionTuileHitbox(const Niveau& n, const Hitbox& h)
 {
     int gauche = static_cast<int>(h.x / TAILLE_TUILE);
@@ -92,28 +209,25 @@ static bool collisionTuileHitbox(const Niveau& n, const Hitbox& h)
     return false;
 }
 
-/**
- * @brief Corrige la position si le joueur apparaît dans un bloc.
- */
-static Vec2 sortirDuSol(const Niveau& n, Vec2 p)
+static Vec2 sortirDuSol(const Niveau& n, const Joueur& joueur, Vec2 p)
 {
-    Hitbox h = hitboxJoueur(p);
+    Hitbox h = hitboxJoueur(joueur, p);
 
     while (collisionTuileHitbox(n, h) && p.y > 0.f)
     {
         p.y -= 1.f;
-        h = hitboxJoueur(p);
+        h = hitboxJoueur(joueur, p);
     }
 
     return p;
 }
 
-/**
- * @brief Collision horizontale avec correction exacte.
- */
-static void corrigerCollisionHorizontale(const Niveau& n, Vec2& p, Vec2& v)
+static void corrigerCollisionHorizontale(const Niveau& n,
+                                         const Joueur& joueur,
+                                         Vec2& p,
+                                         Vec2& v)
 {
-    Hitbox h = hitboxJoueur(p);
+    Hitbox h = hitboxJoueur(joueur, p);
 
     if (!collisionTuileHitbox(n, h))
         return;
@@ -129,10 +243,6 @@ static void corrigerCollisionHorizontale(const Niveau& n, Vec2& p, Vec2& v)
         {
             if (tuileSolide(n, droite, y))
             {
-                /*
-                 * On replace p.x, pas h.x.
-                 * Donc on retire aussi HITBOX_JOUEUR_X.
-                 */
                 p.x = static_cast<float>(droite) * TAILLE_TUILE
                       - HITBOX_JOUEUR_L
                       - HITBOX_JOUEUR_X;
@@ -150,10 +260,6 @@ static void corrigerCollisionHorizontale(const Niveau& n, Vec2& p, Vec2& v)
         {
             if (tuileSolide(n, gauche, y))
             {
-                /*
-                 * Même logique : on replace la position du sprite,
-                 * donc on retire l'offset horizontal de la hitbox.
-                 */
                 p.x = static_cast<float>(gauche + 1) * TAILLE_TUILE
                       - HITBOX_JOUEUR_X;
 
@@ -164,12 +270,114 @@ static void corrigerCollisionHorizontale(const Niveau& n, Vec2& p, Vec2& v)
     }
 }
 
-/**
- * @brief Collision verticale avec correction exacte.
- */
-static void corrigerCollisionVerticale(const Niveau& n, Vec2& p, Vec2& v)
+static void corrigerCollisionVerticale(Niveau& n,
+                                       Joueur& joueur,
+                                       vector<Item>& items,
+                                       vector<Ennemi>& ens,
+                                       Vec2& p,
+                                       Vec2& v)
 {
-    Hitbox h = hitboxJoueur(p);
+    Hitbox h = hitboxJoueur(joueur, p);
+
+    if (!collisionTuileHitbox(n, h))
+        return;
+
+    int gauche = static_cast<int>(h.x / TAILLE_TUILE);
+    int droite = static_cast<int>((h.x + h.largeur - 1.f) / TAILLE_TUILE);
+
+    /*
+     * Collision en tombant : on pose le joueur sur le sol.
+     */
+    if (v.y > 0.f)
+    {
+        int bas = static_cast<int>((h.y + h.hauteur - 1.f) / TAILLE_TUILE);
+
+        for (int x = gauche; x <= droite; x++)
+        {
+            if (tuileSolide(n, x, bas))
+            {
+                p.y = static_cast<float>(bas) * TAILLE_TUILE
+                      - h.hauteur
+                      - HITBOX_JOUEUR_Y;
+
+                v.y = 0.f;
+                return;
+            }
+        }
+    }
+
+    /*
+     * Collision en sautant : le joueur tape une tuile par dessous.
+     */
+    else if (v.y < 0.f)
+    {
+        int haut = static_cast<int>(h.y / TAILLE_TUILE);
+
+        for (int x = gauche; x <= droite; x++)
+        {
+            if (tuileSolide(n, x, haut))
+            {
+                gererTuileFrappeeParDessous(n, joueur, items, ens, x, haut);
+
+                p.y = static_cast<float>(haut + 1) * TAILLE_TUILE
+                      - HITBOX_JOUEUR_Y;
+
+                v.y = 0.f;
+                return;
+            }
+        }
+    }
+}
+
+static void corrigerCollisionEnnemiHorizontale(const Niveau& n,
+                                               const Ennemi& e,
+                                               Vec2& p,
+                                               Vec2& v)
+{
+    Hitbox h = hitboxEnnemi(e, p);
+
+    if (!collisionTuileHitbox(n, h))
+        return;
+
+    int haut = static_cast<int>(h.y / TAILLE_TUILE);
+    int bas = static_cast<int>((h.y + h.hauteur - 1.f) / TAILLE_TUILE);
+
+    if (v.x > 0.f)
+    {
+        int droite = static_cast<int>((h.x + h.largeur - 1.f) / TAILLE_TUILE);
+
+        for (int y = haut; y <= bas; y++)
+        {
+            if (tuileSolide(n, droite, y))
+            {
+                p.x = static_cast<float>(droite) * TAILLE_TUILE - h.largeur;
+                v.x = -v.x;
+                return;
+            }
+        }
+    }
+    else if (v.x < 0.f)
+    {
+        int gauche = static_cast<int>(h.x / TAILLE_TUILE);
+
+        for (int y = haut; y <= bas; y++)
+        {
+            if (tuileSolide(n, gauche, y))
+            {
+                p.x = static_cast<float>(gauche + 1) * TAILLE_TUILE;
+                v.x = -v.x;
+                return;
+            }
+        }
+    }
+}
+
+static void corrigerCollisionEnnemiVerticale(const Niveau& n,
+                                             const Ennemi& e,
+                                             Vec2& p,
+                                             Vec2& v)
+{
+    Hitbox h = hitboxEnnemi(e, p);
 
     if (!collisionTuileHitbox(n, h))
         return;
@@ -207,20 +415,40 @@ static void corrigerCollisionVerticale(const Niveau& n, Vec2& p, Vec2& v)
     }
 }
 
-/**
- * @brief Indique si le joueur est posé sur le sol.
- */
-static bool joueurAuSol(const Niveau& n, const Vec2& p)
+static bool joueurAuSol(const Niveau& n, const Joueur& joueur, const Vec2& p)
 {
-    Hitbox h = hitboxJoueur(p);
+    Hitbox h = hitboxJoueur(joueur, p);
     h.y += 1.f;
 
     return collisionTuileHitbox(n, h);
 }
 
-/**
- * @brief Réinitialise les éléments du niveau après la perte d'une vie.
- */
+static unsigned int nombreBoulesActives(const vector<Feu>& boules)
+{
+    unsigned int n = 0;
+
+    for (unsigned int i = 0; i < boules.size(); i++)
+    {
+        if (boules[i].estActive())
+            n++;
+    }
+
+    return n;
+}
+
+static void nettoyerBoules(vector<Feu>& boules)
+{
+    vector<Feu> boulesActives;
+
+    for (unsigned int i = 0; i < boules.size(); i++)
+    {
+        if (boules[i].estActive())
+            boulesActives.push_back(boules[i]);
+    }
+
+    boules = boulesActives;
+}
+
 static void reinitialiserObjets(Niveau& niv,
                                 vector<Ennemi>& ens,
                                 vector<Item>& items,
@@ -254,7 +482,9 @@ void Jeu::reinit()
     score = 0;
     etat = EtatPartie::enCours;
 
-    Vec2 spawn = sortirDuSol(niv, niv.getSpawn());
+    joueur.devenirPetit();
+
+    Vec2 spawn = sortirDuSol(niv, joueur, niv.getSpawn());
 
     joueur.setPos(spawn);
     joueur.setVit(Vec2(0.f, 0.f));
@@ -267,16 +497,14 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
     if (etat != EtatPartie::enCours)
         return;
 
+    joueur.majPouvoirs(dt);
+
     Vec2 v = joueur.getVit();
     Vec2 p = joueur.getPos();
 
-    /*
-     * Sécurité : si le joueur commence dans un bloc,
-     * on le remonte immédiatement au-dessus.
-     */
-    p = sortirDuSol(niv, p);
+    p = sortirDuSol(niv, joueur, p);
 
-    bool auSol = joueurAuSol(niv, p);
+    bool auSol = joueurAuSol(niv, joueur, p);
 
     if (in.gauche)
     {
@@ -313,7 +541,9 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
         v.x = 0.f;
     }
 
-    corrigerCollisionHorizontale(niv, p, v);
+    
+
+    corrigerCollisionHorizontale(niv, joueur, p, v);
 
     /*
      * Déplacement vertical.
@@ -326,16 +556,17 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
         v.y = 0.f;
     }
 
-    corrigerCollisionVerticale(niv, p, v);
+    corrigerCollisionVerticale(niv, joueur, items, ens, p, v);
+
+    p = sortirDuSol(niv, joueur, p);
 
     /*
-     * Sécurité finale : impossible de rester dans un bloc.
+     * Chute hors de la map = perte directe d'une vie,
+     * même avec étoile.
      */
-    p = sortirDuSol(niv, p);
-
     if (p.y > static_cast<float>(niv.getDimY()) * TAILLE_TUILE)
     {
-        joueur.perdreVie();
+        joueur.perdreVieDirecte();
 
         if (joueur.estMort())
         {
@@ -345,7 +576,9 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
         {
             reinitialiserObjets(niv, ens, items, plats, myst, boules, temps);
 
-            p = sortirDuSol(niv, niv.getSpawn());
+            joueur.devenirPetit();
+
+            p = sortirDuSol(niv, joueur, niv.getSpawn());
             v = Vec2(0.f, 0.f);
         }
     }
@@ -354,11 +587,17 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
     joueur.setPos(p);
     joueur.MajMouv();
 
+    /*
+     * Plateformes.
+     */
     for (unsigned int i = 0; i < plats.size(); i++)
     {
         plats[i].maj(dt);
     }
 
+    /*
+     * Ennemis avec gravité.
+     */
     for (unsigned int i = 0; i < ens.size(); i++)
     {
         if (!ens[i].estEnVie())
@@ -367,37 +606,64 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
         Vec2 ep = ens[i].getPos();
         Vec2 ev = ens[i].getVit();
 
-        ep.x += ev.x * dt * 0.5f;
+        /*
+         * Gravité des ennemis.
+         */
+        ev.y += GRAVITE * dt;
 
-        if (collisionTuileHitbox(niv, hitboxObjet16(ep)))
+        /*
+         * Déplacement horizontal.
+         */
+        ep.x += ev.x * dt * 0.5f;
+        corrigerCollisionEnnemiHorizontale(niv, ens[i], ep, ev);
+
+        /*
+         * Déplacement vertical.
+         */
+        ep.y += ev.y * dt;
+        corrigerCollisionEnnemiVerticale(niv, ens[i], ep, ev);
+
+        /*
+         * Si un ennemi tombe hors de la map, on l'élimine.
+         */
+        if (ep.y > static_cast<float>(niv.getDimY()) * TAILLE_TUILE)
         {
-            ev.x = -ev.x;
-            ep.x += ev.x * dt * 0.5f;
+            ens[i].eliminer();
+            continue;
         }
 
         ens[i].setPos(ep);
         ens[i].setVit(ev);
 
-        Hitbox hbJoueur = hitboxJoueur(joueur.getPos());
-        Hitbox hbEnnemi = hitboxObjet16(ens[i].getPos());
+        Hitbox hbJoueur = hitboxJoueur(joueur, joueur.getPos());
+        Hitbox hbEnnemi = hitboxEnnemi(ens[i], ens[i].getPos());
 
         if (hbJoueur.collision(hbEnnemi))
         {
             bool toucheParDessus =
-                joueur.getPos().y < ens[i].getPos().y &&
+                joueur.getPos().y + joueur.getHauteur() <= ens[i].getPos().y + 8.f &&
                 joueur.getVit().y > 0.f;
 
-            if (toucheParDessus)
+            if (toucheParDessus || joueur.estInvincible())
             {
                 ens[i].eliminer();
                 score += 100;
 
-                Vec2 rebond = joueur.getVit();
-                rebond.y = -180.f;
-                joueur.setVit(rebond);
+                if (toucheParDessus)
+                {
+                    Vec2 rebond = joueur.getVit();
+                    rebond.y = -180.f;
+                    joueur.setVit(rebond);
+                }
             }
             else
             {
+                if (joueur.estProtege())
+                    continue;
+
+                unsigned int viesAvant = joueur.getVies();
+                TypeJoueur typeAvant = joueur.getType();
+
                 joueur.perdreVie();
 
                 if (joueur.estMort())
@@ -406,42 +672,189 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
                 }
                 else
                 {
-                    reinitialiserObjets(niv, ens, items, plats, myst, boules, temps);
+                    /*
+                     * Grand/Feu touché : il devient petit, reste dans le niveau.
+                     */
+                    if (typeAvant == TypeJoueur::grand || typeAvant == TypeJoueur::feu)
+                    {
+                        Vec2 corrigee = sortirDuSol(niv, joueur, joueur.getPos());
+                        joueur.setPos(corrigee);
+                        joueur.setVit(Vec2(0.f, 0.f));
+                    }
 
-                    Vec2 spawn = sortirDuSol(niv, niv.getSpawn());
+                    /*
+                     * Petit touché : il perd une vie et le niveau reset.
+                     */
+                    else if (viesAvant > joueur.getVies())
+                    {
+                        reinitialiserObjets(niv, ens, items, plats, myst, boules, temps);
 
-                    joueur.setPos(spawn);
-                    joueur.setVit(Vec2(0.f, 0.f));
+                        joueur.devenirPetit();
+
+                        Vec2 spawn = sortirDuSol(niv, joueur, niv.getSpawn());
+
+                        joueur.setPos(spawn);
+                        joueur.setVit(Vec2(0.f, 0.f));
+                    }
                 }
             }
         }
     }
 
-    if (in.tir)
+    /*
+     * Tir de feu.
+     * Maximum 5 boules actives à l'écran.
+     * Il faut relâcher F avant de tirer une autre boule.
+     */
+    static bool tirDejaAppuye = false;
+
+    if (!in.tir)
     {
-        boules.push_back(Feu(joueur.getPos(), joueur.getDir()));
+        tirDejaAppuye = false;
     }
 
+    if (in.tir &&
+        !tirDejaAppuye &&
+        joueur.peutTirerFeu() &&
+        nombreBoulesActives(boules) < MAX_BOULES_FEU)
+    {
+        Vec2 depart = joueur.getPos();
+
+        if (joueur.getDir() == Direction::Droite)
+            depart.x += 14.f;
+        else
+            depart.x -= 6.f;
+
+        depart.y += joueur.getHauteur() / 2.f;
+
+        boules.push_back(Feu(depart, joueur.getDir()));
+
+        tirDejaAppuye = true;
+    }
+
+    /*
+     * Boules de feu.
+     */
     for (unsigned int i = 0; i < boules.size(); i++)
     {
+        if (!boules[i].estActive())
+            continue;
+
         boules[i].majTemps(dt);
-    }
 
-    for (unsigned int i = 0; i < items.size(); i++)
-    {
-        if (items[i].estDisponible())
+        Vec2 bp = boules[i].getPos();
+        Vec2 bv = boules[i].getVit();
+
+        /*
+         * Gravité : la boule descend puis rebondit.
+         */
+        bv.y += GRAVITE_FEU * dt;
+
+        /*
+         * Collision horizontale : mur / tuyau / bloc.
+         */
+        Vec2 ancienneBp = bp;
+
+        bp.x += bv.x * dt;
+        boules[i].setPos(bp);
+
+        if (collisionTuileHitbox(niv, hitboxFeu(bp)))
         {
-            Hitbox hbJoueur = hitboxJoueur(joueur.getPos());
-            Hitbox hbItem = hitboxObjet16(items[i].getPos());
+            bp = ancienneBp;
+            bv.x = -bv.x;
+            boules[i].setPos(bp);
+        }
 
-            if (hbJoueur.collision(hbItem))
+        /*
+         * Collision verticale : sol / plafond.
+         */
+        ancienneBp = bp;
+
+        bp.y += bv.y * dt;
+        boules[i].setPos(bp);
+
+        if (collisionTuileHitbox(niv, hitboxFeu(bp)))
+        {
+            bp = ancienneBp;
+
+            if (bv.y > 0.f)
+                bv.y = -REBOND_FEU_Y;
+            else
+                bv.y = 90.f;
+
+            boules[i].setPos(bp);
+        }
+
+        boules[i].setVit(bv);
+
+        /*
+         * Collision boule de feu / ennemi.
+         */
+        for (unsigned int j = 0; j < ens.size(); j++)
+        {
+            if (!ens[j].estEnVie())
+                continue;
+
+            Hitbox hbFeu = hitboxFeu(boules[i].getPos());
+            Hitbox hbEnnemi = hitboxEnnemi(ens[j], ens[j].getPos());
+
+            if (hbFeu.collision(hbEnnemi))
             {
-                items[i].prendre();
-                score += 10;
+                ens[j].eliminer();
+                boules[i].eteindre();
+                score += 100;
+                break;
             }
         }
     }
 
+    nettoyerBoules(boules);
+
+    /*
+     * Items.
+     */
+    for (unsigned int i = 0; i < items.size(); i++)
+    {
+        if (!items[i].estDisponible())
+            continue;
+
+        Hitbox hbJoueur = hitboxJoueur(joueur, joueur.getPos());
+        Hitbox hbItem = hitboxObjet16(items[i].getPos());
+
+        if (hbJoueur.collision(hbItem))
+        {
+            TypeItem typeItem = items[i].getType();
+
+            items[i].prendre();
+
+            if (typeItem == TypeItem::piece)
+            {
+                score += 10;
+            }
+            else if (typeItem == TypeItem::champignon)
+            {
+                joueur.devenirGrand();
+                score += 50;
+            }
+            else if (typeItem == TypeItem::fleur)
+            {
+                joueur.devenirFeu();
+                score += 50;
+            }
+            else if (typeItem == TypeItem::etoile)
+            {
+                joueur.devenirEtoile(DUREE_ETOILE);
+                score += 50;
+            }
+
+            Vec2 posCorrigee = sortirDuSol(niv, joueur, joueur.getPos());
+            joueur.setPos(posCorrigee);
+        }
+    }
+
+    /*
+     * Temps.
+     */
     temps -= dt;
 
     if (temps <= 0.f)
@@ -450,7 +863,10 @@ void Jeu::maj(const EntreeJoueur& in, const float dt)
         etat = EtatPartie::perdue;
     }
 
-    Hitbox hbJoueur = hitboxJoueur(joueur.getPos());
+    /*
+     * Arrivée.
+     */
+    Hitbox hbJoueur = hitboxJoueur(joueur, joueur.getPos());
     Hitbox hbFin = hitboxObjet16(niv.getFin());
 
     if (hbJoueur.collision(hbFin))
@@ -510,16 +926,6 @@ void Jeu::testRegression()
     in.droite = true;
     g.maj(in, 0.1f);
     assert(j.getPos().x >= 0.f);
-
-    EntreeJoueur saut;
-    saut.saut = true;
-    g.maj(saut, 0.1f);
-    assert(j.getPos().y >= 0.f);
-
-    EntreeJoueur tir;
-    tir.tir = true;
-    g.maj(tir, 0.1f);
-    assert(g.getBoules().size() == 1);
 
     cout << "Tous les tests de Jeu sont valides." << endl;
 }

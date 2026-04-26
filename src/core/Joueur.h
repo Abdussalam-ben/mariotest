@@ -56,48 +56,44 @@ private:
     unsigned int vies;
     Personnage perso;
 
+    float tempsEtoile;
+    float tempsProtection;
+
 public:
     Joueur() = delete;
 
-    /**
-     * @brief Construit un joueur à partir d'une position.
-     * @param p Position initiale.
-     */
     Joueur(const Vec2& p);
 
     ~Joueur() = default;
 
-    /**
-     * @brief Met à jour l'état de mouvement du joueur.
-     */
     void MajMouv();
 
     TypeJoueur getType() const;
     EtatJoueur getEtat() const;
     EtatMouvJoueur getMouv() const;
     unsigned int getVies() const;
-
-    /**
-     * @brief Retourne le personnage choisi.
-     * @return Mario ou Luigi.
-     */
     Personnage getPersonnage() const;
+    float getTempsEtoile() const;
 
-    /**
-     * @brief Change le personnage affiché.
-     * @param p Nouveau personnage.
-     */
     void setPersonnage(Personnage p);
+    void setType(TypeJoueur t);
 
-    /**
-     * @brief Retire une vie au joueur.
-     */
+    void devenirPetit();
+    void devenirGrand();
+    void devenirFeu();
+    void devenirEtoile(float duree);
+
+    void majPouvoirs(float dt);
+
+    bool estInvincible() const;
+    bool estProtege() const;
+    bool peutTirerFeu() const;
+
+    void commencerProtection(float duree);
+
     void perdreVie();
+    void perdreVieDirecte();
 
-    /**
-     * @brief Indique si le joueur n'a plus de vies.
-     * @return true si le joueur est mort, false sinon.
-     */
     bool estMort() const;
 
     static void testRegression();
