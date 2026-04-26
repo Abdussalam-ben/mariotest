@@ -1,0 +1,52 @@
+#ifndef GAMEGRAPHICMODE_H
+#define GAMEGRAPHICMODE_H
+
+#include "SDL.h"
+#include "SDL_image.h"
+
+#include "SDLContext.h"
+#include "TextureManager.h"
+
+#include "../core/Jeu.h"
+#include "../core/Joueur.h"
+#include "../core/Niveau.h"
+#include "../core/Ennemi.h"
+#include "../core/Item.h"
+#include "../core/Feu.h"
+#include "../core/EntreeJoueur.h"
+#include "../core/PlateformeMobile.h"
+#include "../core/Tuile.h"
+
+/**
+ * @brief Gère l'affichage graphique du jeu.
+ */
+class GameGraphicMode {
+private:
+    SDLContext* contexte;
+    TextureManager* textures;
+    Jeu* jeu;
+    Niveau* niveau;
+    Joueur* joueur;
+    bool actif;
+    unsigned int frame;
+
+public:
+    GameGraphicMode(SDLContext& c, TextureManager& t);
+
+    void setJeu(Jeu& j, Niveau& n, Joueur& p);
+    EntreeJoueur lireEntree() const;
+
+    void afficherSprite(const char* nom, int x, int y, int l, int h, bool flip = false);
+    const char* spriteJoueur() const;
+
+    void afficherCarte();
+    void afficherItems();
+    void afficherEnnemis();
+    void afficherFeux();
+    void afficherJoueur();
+    void afficher();
+
+    void boucle();
+};
+
+#endif
