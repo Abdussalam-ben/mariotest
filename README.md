@@ -1,5 +1,14 @@
 # Super Mario - Projet SDL2
 
+
+## Informations factuelles
+
+Nom : BENLASHEHAR
+Prénom : Abdussalam
+Numéro étudiant : p2207174
+Lien du dépôt : https://forge.univ-lyon1.fr/p2207174/supermario-2
+Projet réalisé individuellement.
+
 ## Présentation
 
 Ce projet est un jeu de plateforme inspiré de Super Mario, développé en C++ avec la bibliothèque SDL2.
