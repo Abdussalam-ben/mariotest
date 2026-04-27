@@ -2,10 +2,10 @@
 #define GAMEGRAPHICMODE_H
 
 #include <string>
+#include <vector>
 
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_ttf.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 
 #include "SDLContext.h"
 #include "TextureManager.h"
@@ -29,17 +29,21 @@ class GameGraphicMode
 private:
     SDLContext* contexte;
     TextureManager* textures;
+
     Jeu* jeu;
     Niveau* niveau;
     Joueur* joueur;
 
     bool actif;
+    bool enPause;
+
     unsigned int frame;
 
     float cameraX;
     float cameraY;
 
     TTF_Font* police;
+
     unsigned int scoreMax;
 
 public:
@@ -55,12 +59,17 @@ public:
     void fermerPolice();
 
     void afficherSprite(const char* nom, int x, int y, int l, int h, bool flip = false);
+
     void afficherTexte(const std::string& texte, int x, int y);
+    void afficherTexteCentre(const std::string& texte, int y);
+
     void afficherHUD();
+    void afficherPause();
 
     std::string nomJoueur() const;
     std::string nomNiveau() const;
     std::string etatJoueur() const;
+
     unsigned int calculerScoreMax() const;
 
     const char* spriteJoueur() const;
@@ -70,8 +79,8 @@ public:
     void afficherEnnemis();
     void afficherFeux();
     void afficherJoueur();
-    void afficher();
 
+    void afficher();
     void boucle();
 };
 

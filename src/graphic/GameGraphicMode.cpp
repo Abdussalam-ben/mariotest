@@ -1,11 +1,14 @@
 #include "GameGraphicMode.h"
 
+#include <iostream>
 #include <string>
 #include <vector>
-#include <iostream>
 
 using namespace std;
 
+/**
+ * @brief Construit le mode graphique du jeu.
+ */
 GameGraphicMode::GameGraphicMode(SDLContext& c, TextureManager& t)
     : contexte(&c),
       textures(&t),
@@ -13,6 +16,7 @@ GameGraphicMode::GameGraphicMode(SDLContext& c, TextureManager& t)
       niveau(nullptr),
       joueur(nullptr),
       actif(true),
+      enPause(false),
       frame(0),
       cameraX(0.f),
       cameraY(0.f),
@@ -22,15 +26,20 @@ GameGraphicMode::GameGraphicMode(SDLContext& c, TextureManager& t)
     initialiserPolice();
 }
 
+/**
+ * @brief Associe le jeu, le niveau et le joueur au mode graphique.
+ */
 void GameGraphicMode::setJeu(Jeu& j, Niveau& n, Joueur& p)
 {
     jeu = &j;
     niveau = &n;
     joueur = &p;
-
     scoreMax = calculerScoreMax();
 }
 
+/**
+ * @brief Lit les touches du clavier.
+ */
 EntreeJoueur GameGraphicMode::lireEntree() const
 {
     EntreeJoueur entree;
@@ -39,12 +48,17 @@ EntreeJoueur GameGraphicMode::lireEntree() const
 
     entree.gauche = clavier[SDL_SCANCODE_Q] || clavier[SDL_SCANCODE_LEFT];
     entree.droite = clavier[SDL_SCANCODE_D] || clavier[SDL_SCANCODE_RIGHT];
-    entree.saut = clavier[SDL_SCANCODE_SPACE] || clavier[SDL_SCANCODE_Z] || clavier[SDL_SCANCODE_UP];
+    entree.saut = clavier[SDL_SCANCODE_SPACE] ||
+                  clavier[SDL_SCANCODE_Z] ||
+                  clavier[SDL_SCANCODE_UP];
     entree.tir = clavier[SDL_SCANCODE_F];
 
     return entree;
 }
 
+/**
+ * @brief Met à jour la caméra selon la position du joueur.
+ */
 void GameGraphicMode::majCamera()
 {
     if (joueur == nullptr || niveau == nullptr)
@@ -78,35 +92,35 @@ void GameGraphicMode::majCamera()
         cameraY = 0.f;
 }
 
+/**
+ * @brief Initialise la police Mario utilisée pour le HUD et la pause.
+ */
 void GameGraphicMode::initialiserPolice()
 {
-    if (TTF_Init() == -1)
+    if (TTF_WasInit() == 0)
     {
-        cerr << "Erreur TTF_Init : " << TTF_GetError() << endl;
-        police = nullptr;
-        return;
+        if (TTF_Init() == -1)
+        {
+            cerr << "Erreur TTF_Init : " << TTF_GetError() << endl;
+            police = nullptr;
+            return;
+        }
     }
 
-    const char* chemins[] = {
-        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSerif.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSerif.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
-        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf"
-    };
+    const char* cheminPolice = "assets/polices/super_mario_bros_nes.ttf";
 
-    for (unsigned int i = 0; i < 5 && police == nullptr; i++)
-    {
-        police = TTF_OpenFont(chemins[i], 8);
-    }
+    police = TTF_OpenFont(cheminPolice, 8);
 
     if (police == nullptr)
     {
-        cerr << "Erreur : impossible de charger une police." << endl;
-        cerr << "Installe : sudo dnf install dejavu-sans-fonts" << endl;
+        cerr << "Erreur : impossible de charger la police " << cheminPolice << endl;
+        cerr << TTF_GetError() << endl;
     }
 }
 
+/**
+ * @brief Ferme la police utilisée.
+ */
 void GameGraphicMode::fermerPolice()
 {
     if (police != nullptr)
@@ -114,13 +128,15 @@ void GameGraphicMode::fermerPolice()
         TTF_CloseFont(police);
         police = nullptr;
     }
-
-    TTF_Quit();
 }
 
+/**
+ * @brief Affiche un sprite à l'écran.
+ */
 void GameGraphicMode::afficherSprite(const char* nom, int x, int y, int l, int h, bool flip)
 {
     string chemin = string("assets/sprites/") + nom;
+
     SDL_Texture* tex = textures->getTexture(chemin);
 
     if (tex == nullptr)
@@ -137,6 +153,9 @@ void GameGraphicMode::afficherSprite(const char* nom, int x, int y, int l, int h
     SDL_RenderCopyEx(contexte->getRenderer(), tex, NULL, &dst, 0.0, NULL, f);
 }
 
+/**
+ * @brief Affiche un texte à une position précise.
+ */
 void GameGraphicMode::afficherTexte(const string& texte, int x, int y)
 {
     if (police == nullptr)
@@ -173,59 +192,81 @@ void GameGraphicMode::afficherTexte(const string& texte, int x, int y)
     SDL_FreeSurface(surface);
 }
 
+/**
+ * @brief Affiche un texte centré horizontalement.
+ */
+void GameGraphicMode::afficherTexteCentre(const string& texte, int y)
+{
+    if (police == nullptr)
+        return;
+
+    int largeurTexte = 0;
+    int hauteurTexte = 0;
+
+    if (TTF_SizeText(police, texte.c_str(), &largeurTexte, &hauteurTexte) != 0)
+        return;
+
+    int x = static_cast<int>((WINDOW_NES_WIDTH - largeurTexte) / 2);
+
+    afficherTexte(texte, x, y);
+}
+
+/**
+ * @brief Retourne le nom du personnage affiché dans le HUD.
+ */
 string GameGraphicMode::nomJoueur() const
 {
     if (joueur == nullptr)
-        return "Joueur";
+        return "JOUEUR";
 
     if (joueur->getPersonnage() == Personnage::luigi)
-        return "Luigi";
+        return "LUIGI";
 
-    return "Mario";
+    return "MARIO";
 }
 
+/**
+ * @brief Retourne le nom du niveau affiché dans le HUD.
+ */
 string GameGraphicMode::nomNiveau() const
 {
     if (niveau == nullptr)
-        return "Niveau ?";
+        return "NIVEAU ?";
 
     unsigned int id = niveau->getId();
 
     if (id == 4)
-        return "Niveau 4 difficile";
+        return "NIVEAU 4";
 
     if (id == 5)
-        return "Niveau 5 long";
+        return "NIVEAU 5";
 
-    return "Niveau " + to_string(id);
+    return "NIVEAU " + to_string(id);
 }
 
+/**
+ * @brief Retourne l'état actuel du joueur.
+ */
 string GameGraphicMode::etatJoueur() const
 {
     if (joueur == nullptr)
-        return "Inconnu";
-
-    string etat;
+        return "INCONNU";
 
     if (joueur->getType() == TypeJoueur::petit)
-        etat = "Petit";
-    else if (joueur->getType() == TypeJoueur::grand)
-        etat = "Grand";
-    else if (joueur->getType() == TypeJoueur::feu)
-        etat = "Feu";
-    else
-        etat = "Inconnu";
+        return "PETIT";
 
-    if (joueur->estInvincible())
-    {
-        etat += " + Etoile ";
-        etat += to_string(static_cast<int>(joueur->getTempsEtoile()));
-        etat += "s";
-    }
+    if (joueur->getType() == TypeJoueur::grand)
+        return "GRAND";
 
-    return etat;
+    if (joueur->getType() == TypeJoueur::feu)
+        return "FEU";
+
+    return "INCONNU";
 }
 
+/**
+ * @brief Calcule le score maximum possible du niveau.
+ */
 unsigned int GameGraphicMode::calculerScoreMax() const
 {
     if (niveau == nullptr)
@@ -249,6 +290,12 @@ unsigned int GameGraphicMode::calculerScoreMax() const
     return max;
 }
 
+/**
+ * @brief Affiche les informations du joueur en haut de l'écran.
+ */
+/**
+ * @brief Affiche les informations du joueur en haut de l'écran.
+ */
 void GameGraphicMode::afficherHUD()
 {
     if (jeu == nullptr || joueur == nullptr || niveau == nullptr)
@@ -256,21 +303,58 @@ void GameGraphicMode::afficherHUD()
 
     int tempsRestant = static_cast<int>(jeu->getTemps());
 
-    string ligne1 =
-        nomJoueur() +
-        " | Vies: " + to_string(joueur->getVies()) +
-        " | " + nomNiveau();
-
-    string ligne2 =
-        "Temps: " + to_string(tempsRestant) +
-        " | Etat: " + etatJoueur() +
-        " | Score: " + to_string(jeu->getScore()) +
-        "/" + to_string(scoreMax);
+    string ligne1 = nomJoueur() + "   VIES " + to_string(joueur->getVies());
+    string ligne2 = nomNiveau() + "   TEMPS " + to_string(tempsRestant);
+    string ligne3 = "PIECES " + to_string(jeu->getPieces()) +
+                    "   SCORE " + to_string(jeu->getScore());
+    string ligne4 = "ETAT " + etatJoueur();
 
     afficherTexte(ligne1, 4, 4);
     afficherTexte(ligne2, 4, 16);
+    afficherTexte(ligne3, 4, 28);
+    afficherTexte(ligne4, 4, 40);
+
+      /*
+     * L'étoile est affichée sur une ligne séparée pour éviter que
+     * la police Mario dépasse de l'écran.
+     */
+
+    if (joueur->estInvincible())
+    {
+        int tempsEtoile = static_cast<int>(joueur->getTempsEtoile() + 0.99f);
+        afficherTexte("ETOILE " + to_string(tempsEtoile) + "S", 4, 52);
+    }
 }
 
+
+
+
+
+
+/**
+ * @brief Affiche l'écran de pause.
+ */
+void GameGraphicMode::afficherPause()
+{
+    SDL_Renderer* r = contexte->getRenderer();
+
+    SDL_Rect fond;
+    fond.x = 35;
+    fond.y = 70;
+    fond.w = 186;
+    fond.h = 92;
+
+    SDL_SetRenderDrawColor(r, 0, 0, 0, 220);
+    SDL_RenderFillRect(r, &fond);
+
+    afficherTexteCentre("PAUSE", 88);
+    afficherTexteCentre("P: CONTINUER", 116);
+    afficherTexteCentre("ECHAP: QUITTER", 136);
+}
+
+/**
+ * @brief Retourne le sprite actuel du joueur.
+ */
 const char* GameGraphicMode::spriteJoueur() const
 {
     if (joueur == nullptr)
@@ -281,8 +365,12 @@ const char* GameGraphicMode::spriteJoueur() const
     bool saut = joueur->getVit().y < 0.f;
     bool marcheDroite = joueur->getVit().x > 0.f;
     bool marcheGauche = joueur->getVit().x < 0.f;
+
     unsigned int k = (frame / 8) % 3;
 
+    /*
+     * Mario / Luigi feu.
+     */
     if (joueur->getType() == TypeJoueur::feu)
     {
         if (luigi)
@@ -327,6 +415,9 @@ const char* GameGraphicMode::spriteJoueur() const
         return gauche ? "mario_feu_initial_gauche.png" : "mario_feu_initial.png";
     }
 
+    /*
+     * Grand Mario / Grand Luigi.
+     */
     if (joueur->getType() == TypeJoueur::grand)
     {
         if (luigi)
@@ -416,6 +507,9 @@ const char* GameGraphicMode::spriteJoueur() const
     return gauche ? "mario_base_gauche.png" : "mario_base.png";
 }
 
+/**
+ * @brief Affiche la carte du niveau.
+ */
 void GameGraphicMode::afficherCarte()
 {
     if (niveau == nullptr)
@@ -463,9 +557,12 @@ void GameGraphicMode::afficherCarte()
     int fx = static_cast<int>(niveau->getFin().x);
     int fy = static_cast<int>(niveau->getFin().y);
 
-    afficherSprite("drapeau_fin.png", fx, fy - 16, 16, 32);
+    afficherSprite("drapeau_fin.png", fx, fy - 160, 16, 176);
 }
 
+/**
+ * @brief Affiche les items du niveau.
+ */
 void GameGraphicMode::afficherItems()
 {
     if (jeu == nullptr)
@@ -485,10 +582,14 @@ void GameGraphicMode::afficherItems()
         {
             unsigned int k = (frame / 8) % 4;
 
-            if (k == 0) afficherSprite("coin_1.png", x, y, 16, 16);
-            else if (k == 1) afficherSprite("coin_2.png", x, y, 16, 16);
-            else if (k == 2) afficherSprite("coin_3.png", x, y, 16, 16);
-            else afficherSprite("coin_4.png", x, y, 16, 16);
+            if (k == 0)
+                afficherSprite("coin_1.png", x, y, 16, 16);
+            else if (k == 1)
+                afficherSprite("coin_2.png", x, y, 16, 16);
+            else if (k == 2)
+                afficherSprite("coin_3.png", x, y, 16, 16);
+            else
+                afficherSprite("coin_4.png", x, y, 16, 16);
         }
         else if (items[i].getType() == TypeItem::champignon)
         {
@@ -505,6 +606,9 @@ void GameGraphicMode::afficherItems()
     }
 }
 
+/**
+ * @brief Affiche les ennemis du niveau.
+ */
 void GameGraphicMode::afficherEnnemis()
 {
     if (jeu == nullptr)
@@ -547,6 +651,9 @@ void GameGraphicMode::afficherEnnemis()
     }
 }
 
+/**
+ * @brief Affiche les boules de feu.
+ */
 void GameGraphicMode::afficherFeux()
 {
     if (jeu == nullptr)
@@ -563,18 +670,36 @@ void GameGraphicMode::afficherFeux()
 
             unsigned int k = (frame / 5) % 4;
 
-            if (k == 0) afficherSprite("boule_feu_1.png", x, y, 8, 8);
-            else if (k == 1) afficherSprite("boule_feu_2.png", x, y, 8, 8);
-            else if (k == 2) afficherSprite("boule_feu_3.png", x, y, 8, 8);
-            else afficherSprite("boule_feu_4.png", x, y, 8, 8);
+            if (k == 0)
+                afficherSprite("boule_feu_1.png", x, y, 8, 8);
+            else if (k == 1)
+                afficherSprite("boule_feu_2.png", x, y, 8, 8);
+            else if (k == 2)
+                afficherSprite("boule_feu_3.png", x, y, 8, 8);
+            else
+                afficherSprite("boule_feu_4.png", x, y, 8, 8);
         }
     }
 }
 
+/**
+ * @brief Affiche le joueur.
+ */
 void GameGraphicMode::afficherJoueur()
 {
     if (joueur == nullptr)
         return;
+
+    /*
+     * Clignotement :
+     * - pendant l'étoile
+     * - pendant la protection après un dégât
+     */
+    if ((joueur->estInvincible() || joueur->estProtege()) &&
+        (frame / 5) % 2 == 0)
+    {
+        return;
+    }
 
     int x = static_cast<int>(joueur->getPos().x);
     int y = static_cast<int>(joueur->getPos().y);
@@ -585,6 +710,9 @@ void GameGraphicMode::afficherJoueur()
     afficherSprite(spriteJoueur(), x, y, largeur, hauteur);
 }
 
+/**
+ * @brief Affiche toute la scène.
+ */
 void GameGraphicMode::afficher()
 {
     SDL_Renderer* r = contexte->getRenderer();
@@ -599,15 +727,21 @@ void GameGraphicMode::afficher()
     afficherEnnemis();
     afficherFeux();
     afficherJoueur();
-
     afficherHUD();
+
+    if (enPause)
+        afficherPause();
 
     SDL_RenderPresent(r);
 }
 
+/**
+ * @brief Boucle principale du mode graphique.
+ */
 void GameGraphicMode::boucle()
 {
     actif = true;
+    enPause = false;
 
     while (actif)
     {
@@ -616,24 +750,42 @@ void GameGraphicMode::boucle()
         while (SDL_PollEvent(&event))
         {
             if (event.type == SDL_QUIT)
+            {
                 actif = false;
+            }
 
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
-                actif = false;
+            if (event.type == SDL_KEYDOWN)
+            {
+                if (event.key.keysym.sym == SDLK_ESCAPE)
+                {
+                    actif = false;
+                }
+
+                if (event.key.keysym.sym == SDLK_p)
+                {
+                    enPause = !enPause;
+                }
+            }
         }
 
-     if (jeu != nullptr)
+        /*
+         * En pause, on garde l'affichage mais on ne met plus à jour :
+         * joueur, ennemis, collisions, score et temps.
+         */
+        if (!enPause && jeu != nullptr)
         {
-    EntreeJoueur entree = lireEntree();
-    jeu->maj(entree, 1.f / 60.f);
+            EntreeJoueur entree = lireEntree();
 
-    if (jeu->getEtat() != EtatPartie::enCours)
-        actif = false;
+            jeu->maj(entree, 1.f / 60.f);
+
+            if (jeu->getEtat() != EtatPartie::enCours)
+                actif = false;
         }
 
         afficher();
 
-        frame++;
+        if (!enPause)
+            frame++;
 
         SDL_Delay(1000 / 60);
     }

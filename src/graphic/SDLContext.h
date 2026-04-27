@@ -3,14 +3,17 @@
 
 #include "SDL.h"
 #include "SDL_image.h"
+#include "SDL2/SDL_mixer.h"
 
 /**
- * @brief Gère l'initialisation de SDL, la fenêtre et le renderer.
+ * @brief Gère l'initialisation de SDL, la fenêtre, le renderer et la musique.
  */
-class SDLContext {
+class SDLContext
+{
 private:
     SDL_Window* fenetre;
     SDL_Renderer* renderer;
+    Mix_Music* musique;
 
 public:
     SDLContext();

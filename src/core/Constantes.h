@@ -49,12 +49,12 @@ const float V_ENNEMI_X = 80.f;
 /**
  * @brief Largeur réelle de la fenêtre SDL affichée à l'écran.
  */
-const unsigned int WINDOW_WIDTH = 768;
+const unsigned int WINDOW_WIDTH = 1024;
 
 /**
  * @brief Hauteur réelle de la fenêtre SDL affichée à l'écran.
  */
-const unsigned int WINDOW_HEIGHT = 720;
+const unsigned int WINDOW_HEIGHT = 960;
 
 /**
  * @brief Largeur logique du rendu de style NES.
